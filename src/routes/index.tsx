@@ -39,6 +39,13 @@ function Console() {
   const [datasetId, setDatasetId] = useState<string | null>(null);
   const [entity, setEntity] = useState<{ id: string; type: string } | null>(null);
 
+  const stored = useQuery({ queryKey: ["datasets"], queryFn: () => listDatasets() });
+  const latest = (stored.data as { id: string }[] | undefined)?.[0]?.id ?? null;
+  useEffect(() => {
+    if (!datasetId && latest) setDatasetId(latest);
+  }, [latest, datasetId]);
+
+
   const investigate = (id: string, type: string) => {
     setEntity({ id, type });
     setTab("Investigation");
