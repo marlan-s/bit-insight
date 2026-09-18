@@ -143,10 +143,10 @@ export function parseXmlRecords(text: string): Record<string, unknown>[] {
     const leaves = [...inner.matchAll(/<([A-Za-z_][\w.-]*)\b[^>]*>([^<]*)<\/\1>/g)];
     if (leaves.length < 2) continue;
     const rec: Record<string, unknown> = {};
-    for (const m of leaves) rec[m[1]] = m[2].trim();
+    for (const m of leaves) rec[m[1] ?? ""] = (m[2] ?? "").trim();
     // attributes on the record element itself
     const attrs = [...(block.match(/^<[^>]+>/)?.[0] ?? "").matchAll(/([A-Za-z_][\w.-]*)="([^"]*)"/g)];
-    for (const a of attrs) rec[a[1]] = a[2];
+    for (const a of attrs) rec[a[1] ?? ""] = a[2];
     records.push(rec);
   }
   return records;
@@ -183,7 +183,7 @@ export function ingest(filename: string, text: string): IngestResult {
   if (format === "csv") {
     const rows = parseCsvRows(text);
     if (rows.length < 2) throw new Error("The CSV file has no data rows.");
-    const headers = rows[0].map((h) => h.trim());
+    const headers = (rows[0] ?? []).map((h) => h.trim());
     rawRecords = rows.slice(1).map((r) => {
       const rec: Record<string, unknown> = {};
       headers.forEach((h, i) => (rec[h] = r[i]));
