@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import AlertsPanel from "@/components/intel/AlertsPanel";
 import DatasetPanel from "@/components/intel/DatasetPanel";
 import InvestigationPanel from "@/components/intel/InvestigationPanel";
 import OverviewPanel from "@/components/intel/OverviewPanel";
+import { listDatasets } from "@/lib/intel.functions";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
