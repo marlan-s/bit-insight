@@ -14,7 +14,204 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      datasets: {
+        Row: {
+          created_at: string
+          detected_fields: Json
+          field_mapping: Json
+          id: string
+          ingest_errors: Json
+          invalid_count: number
+          name: string
+          record_count: number
+          source_format: string
+          status: string
+          valid_count: number
+        }
+        Insert: {
+          created_at?: string
+          detected_fields?: Json
+          field_mapping?: Json
+          id?: string
+          ingest_errors?: Json
+          invalid_count?: number
+          name: string
+          record_count?: number
+          source_format: string
+          status?: string
+          valid_count?: number
+        }
+        Update: {
+          created_at?: string
+          detected_fields?: Json
+          field_mapping?: Json
+          id?: string
+          ingest_errors?: Json
+          invalid_count?: number
+          name?: string
+          record_count?: number
+          source_format?: string
+          status?: string
+          valid_count?: number
+        }
+        Relationships: []
+      }
+      entities: {
+        Row: {
+          anomaly_score: number
+          dataset_id: string
+          entity_id: string
+          entity_type: string
+          explanation: Json
+          features: Json
+          id: number
+          ip_count: number
+          last_seen: string | null
+          primary_reason: string | null
+          risk_score: number
+          scenario: string | null
+          tx_count: number
+        }
+        Insert: {
+          anomaly_score?: number
+          dataset_id: string
+          entity_id: string
+          entity_type: string
+          explanation?: Json
+          features?: Json
+          id?: number
+          ip_count?: number
+          last_seen?: string | null
+          primary_reason?: string | null
+          risk_score?: number
+          scenario?: string | null
+          tx_count?: number
+        }
+        Update: {
+          anomaly_score?: number
+          dataset_id?: string
+          entity_id?: string
+          entity_type?: string
+          explanation?: Json
+          features?: Json
+          id?: number
+          ip_count?: number
+          last_seen?: string | null
+          primary_reason?: string | null
+          risk_score?: number
+          scenario?: string | null
+          tx_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entities_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      model_runs: {
+        Row: {
+          created_at: string
+          dataset_id: string
+          id: string
+          metrics: Json
+          model_type: string
+          params: Json
+          summary: Json
+        }
+        Insert: {
+          created_at?: string
+          dataset_id: string
+          id?: string
+          metrics?: Json
+          model_type: string
+          params?: Json
+          summary?: Json
+        }
+        Update: {
+          created_at?: string
+          dataset_id?: string
+          id?: string
+          metrics?: Json
+          model_type?: string
+          params?: Json
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_runs_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          dataset_id: string
+          destination_ip: string | null
+          destination_port: number | null
+          fee: number | null
+          id: number
+          input_amount: number | null
+          input_wallet: string | null
+          output_amount: number | null
+          output_wallet: string | null
+          scenario: string | null
+          script_type: string | null
+          source_ip: string | null
+          source_port: number | null
+          ts: string | null
+          txid: string
+        }
+        Insert: {
+          dataset_id: string
+          destination_ip?: string | null
+          destination_port?: number | null
+          fee?: number | null
+          id?: number
+          input_amount?: number | null
+          input_wallet?: string | null
+          output_amount?: number | null
+          output_wallet?: string | null
+          scenario?: string | null
+          script_type?: string | null
+          source_ip?: string | null
+          source_port?: number | null
+          ts?: string | null
+          txid: string
+        }
+        Update: {
+          dataset_id?: string
+          destination_ip?: string | null
+          destination_port?: number | null
+          fee?: number | null
+          id?: number
+          input_amount?: number | null
+          input_wallet?: string | null
+          output_amount?: number | null
+          output_wallet?: string | null
+          scenario?: string | null
+          script_type?: string | null
+          source_ip?: string | null
+          source_port?: number | null
+          ts?: string | null
+          txid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
