@@ -260,12 +260,18 @@ export const getEntityDetail = createServerFn({ method: "POST" })
 
     const { nodes, edges } = graph.subgraph(center, data.hops ?? 1, 150);
     const riskByEntity = new Map<string, number>();
-    const { data: scored } = await client
-      .from("entities")
-      .select("entity_id,entity_type,risk_score,features")
-      .eq("dataset_id", data.datasetId)
-      .limit(100000);
-    const scoredRows = (scored ?? []) as {
+    const scored: unknown[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data: page } = await client
+        .from("entities")
+        .select("entity_id,entity_type,risk_score,features")
+        .eq("dataset_id", data.datasetId)
+        .order("id", { ascending: true })
+        .range(offset, offset + 999);
+      scored.push(...(page ?? []));
+      if ((page ?? []).length < 1000) break;
+    }
+    const scoredRows = scored as {
       entity_id: string;
       entity_type: string;
       risk_score: number;

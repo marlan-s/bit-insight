@@ -276,7 +276,7 @@ export default function InvestigationPanel({
                   <div>transactions: <span className="text-foreground">{evidence.transactionCount}</span></div>
                   <div>graph degree: <span className="text-foreground">{evidence.degree}</span></div>
                   <div>component: <span className="text-foreground">{evidence.componentSize} nodes</span></div>
-                  <div>anomalous neighbours: <span className="text-foreground">{evidence.suspiciousNeighbours.length}</span></div>
+                  <div>2-hop wallets risk ≥ 60: <span className="text-foreground">{evidence.suspiciousNeighbours.length}</span></div>
                   <div className="col-span-2">first {fmtTime(evidence.firstSeen)} · last {fmtTime(evidence.lastSeen)}</div>
                 </div>
               </Section>
