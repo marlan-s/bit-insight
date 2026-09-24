@@ -1,3 +1,4 @@
+import { BURST_WINDOW_MS, maxWindow } from "./investigate";
 import { IntelGraph, nodeId } from "./graph";
 import type { NormalizedTx } from "./types";
 
@@ -159,20 +160,10 @@ export function computeFeatures(txs: NormalizedTx[], graph: IntelGraph) {
     for (let i = 1; i < times.length; i++) gaps.push(((times[i] ?? 0) - (times[i - 1] ?? 0)) / 60000);
     const spanHours = times.length > 1 ? ((times[times.length - 1] ?? 0) - (times[0] ?? 0)) / 3600000 : 0;
 
-    // burst: max transactions inside a 10-minute sliding window
-    let burst = 0;
-    for (let i = 0; i < times.length; i++) {
-      let count = 0;
-      for (let j = i; j < times.length && (times[j] ?? 0) - (times[i] ?? 0) <= 600000; j++) count++;
-      burst = Math.max(burst, count);
-    }
+    // burst: max transactions inside a 10-minute sliding window (shared with the timeline view)
+    const burst = maxWindow(times, BURST_WINDOW_MS).count;
     // peak transactions per hour window
-    let perHour = 0;
-    for (let i = 0; i < times.length; i++) {
-      let count = 0;
-      for (let j = i; j < times.length && (times[j] ?? 0) - (times[i] ?? 0) <= 3600000; j++) count++;
-      perHour = Math.max(perHour, count);
-    }
+    const perHour = maxWindow(times, 3600000).count;
 
     const id = nodeId("wallet", address);
     const txCount = agg.amounts.length;

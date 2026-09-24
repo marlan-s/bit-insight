@@ -6,6 +6,7 @@ import { generateDataset, toCsv } from "./pipeline/generator";
 import { ingest } from "./pipeline/normalize";
 import { runPipeline } from "./pipeline/index";
 import type { NormalizedTx } from "./pipeline/types";
+import { summarizeBurst } from "./pipeline/investigate";
 
 function db(): SupabaseClient {
   const url = process.env["SUPABASE_URL"]!;
@@ -261,11 +262,17 @@ export const getEntityDetail = createServerFn({ method: "POST" })
     const riskByEntity = new Map<string, number>();
     const { data: scored } = await client
       .from("entities")
-      .select("entity_id,entity_type,risk_score")
-      .eq("dataset_id", data.datasetId);
-    for (const s of (scored ?? []) as { entity_id: string; entity_type: string; risk_score: number }[]) {
-      riskByEntity.set(`${s.entity_type}:${s.entity_id}`, s.risk_score);
-    }
+      .select("entity_id,entity_type,risk_score,features")
+      .eq("dataset_id", data.datasetId)
+      .limit(100000);
+    const scoredRows = (scored ?? []) as {
+      entity_id: string;
+      entity_type: string;
+      risk_score: number;
+      features: Record<string, number> | null;
+    }[];
+    for (const s of scoredRows) riskByEntity.set(`${s.entity_type}:${s.entity_id}`, s.risk_score);
+    const walletFeatureRows = scoredRows.filter((s) => s.entity_type === "wallet");
 
     const relatedTxs = txs.filter(
       (t) =>
@@ -295,9 +302,20 @@ export const getEntityDetail = createServerFn({ method: "POST" })
       .sort((a, b) => b.risk - a.risk)
       .slice(0, 10);
 
-    const timeline = relatedTxs
+    const sorted = relatedTxs
       .filter((t) => t.timestamp)
-      .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+      .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+    // Burst baseline = dataset average of the burst_score feature over scored wallets (computed by the pipeline).
+    const burstVals = walletFeatureRows
+      .map((r) => r.features?.["burst_score"])
+      .filter((v): v is number => typeof v === "number");
+    const burstBaseline = burstVals.length ? burstVals.reduce((a, b) => a + b, 0) / burstVals.length : null;
+    const burst = summarizeBurst(
+      sorted.map((t) => t.timestamp as number),
+      burstBaseline,
+    );
+    const isWallet = type === "wallet";
+    const timeline = sorted
       .map((t, i, arr) => {
         const prev = arr[i - 1]?.timestamp ?? null;
         const gapMin = prev && t.timestamp ? (t.timestamp - prev) / 60000 : null;
@@ -305,14 +323,19 @@ export const getEntityDetail = createServerFn({ method: "POST" })
           txid: t.txid,
           timestamp: t.timestamp,
           amount: t.output_amount ?? t.input_amount ?? 0,
-          direction: t.input_wallet === data.entityId ? "out" : "in",
-          counterparty: t.input_wallet === data.entityId ? t.output_wallet : t.input_wallet,
+          direction: isWallet ? (t.input_wallet === data.entityId ? "out" : "in") : null,
+          counterparty: isWallet
+            ? t.input_wallet === data.entityId
+              ? t.output_wallet
+              : t.input_wallet
+            : `${t.input_wallet ?? "?"} → ${t.output_wallet ?? "?"}`,
           source_ip: t.source_ip,
+          destination_ip: t.destination_ip,
           gapMinutes: gapMin,
-          burst: gapMin !== null && gapMin < 1.5,
+          burst: burst.detected && i >= burst.startIndex && i <= burst.endIndex,
         };
       })
-      .slice(0, 300);
+      .slice(0, 500);
 
     const componentSize = graph.connectedComponents().get(center) ?? 1;
 
@@ -343,6 +366,7 @@ export const getEntityDetail = createServerFn({ method: "POST" })
         lastSeen: relatedTxs.reduce<number | null>((m, t) => (t.timestamp && (m === null || t.timestamp > m) ? t.timestamp : m), null),
       },
       timeline,
+      burst,
     };
   });
 
@@ -374,4 +398,56 @@ export const expandNode = createServerFn({ method: "POST" })
       })),
       edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: e.type })),
     };
+  });
+
+/** All scored entities (light columns) for client-side search/filter/sort. Paged past the 1000-row cap. */
+export const getAllAlerts = createServerFn({ method: "POST" })
+  .inputValidator((input: { datasetId: string }) => input)
+  .handler(async ({ data }) => {
+    const client = db();
+    const all: unknown[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data: rows, error } = await client
+        .from("entities")
+        .select("entity_id,entity_type,risk_score,primary_reason,tx_count,ip_count,last_seen,scenario")
+        .eq("dataset_id", data.datasetId)
+        .order("risk_score", { ascending: false })
+        .range(offset, offset + 999);
+      if (error) throw new Error(error.message);
+      all.push(...(rows ?? []));
+      if ((rows ?? []).length < 1000) break;
+    }
+    return all as {
+      entity_id: string; entity_type: string; risk_score: number; primary_reason: string | null;
+      tx_count: number; ip_count: number; last_seen: string | null; scenario: string | null;
+    }[];
+  });
+
+/** Case-insensitive search across wallet addresses, IPs and TXIDs in stored transactions. */
+export const searchRelated = createServerFn({ method: "POST" })
+  .inputValidator((input: { datasetId: string; query: string }) => {
+    const q = (input?.query ?? "").trim().slice(0, 120).replace(/[%,()*\\]/g, "");
+    return { datasetId: input.datasetId, query: q };
+  })
+  .handler(async ({ data }) => {
+    if (data.query.length < 2) return { related: [] as string[], ips: [] as string[], txCount: 0 };
+    const like = `%${data.query}%`;
+    const { data: rows, error } = await db()
+      .from("transactions")
+      .select("txid,input_wallet,output_wallet,source_ip,destination_ip")
+      .eq("dataset_id", data.datasetId)
+      .or(
+        `txid.ilike.${like},input_wallet.ilike.${like},output_wallet.ilike.${like},source_ip.ilike.${like},destination_ip.ilike.${like}`,
+      )
+      .limit(1000);
+    if (error) throw new Error(error.message);
+    const q = data.query.toLowerCase();
+    const related = new Set<string>();
+    const ips = new Set<string>();
+    for (const r of (rows ?? []) as { txid: string; input_wallet: string | null; output_wallet: string | null; source_ip: string | null; destination_ip: string | null }[]) {
+      related.add(`transaction:${r.txid}`);
+      for (const w of [r.input_wallet, r.output_wallet]) if (w && w.toLowerCase().includes(q)) related.add(`wallet:${w}`);
+      for (const ip of [r.source_ip, r.destination_ip]) if (ip && ip.toLowerCase().includes(q)) ips.add(ip);
+    }
+    return { related: [...related], ips: [...ips].slice(0, 20), txCount: (rows ?? []).length };
   });
