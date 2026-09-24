@@ -315,7 +315,10 @@ export const getEntityDetail = createServerFn({ method: "POST" })
     const burstVals = walletFeatureRows
       .map((r) => r.features?.["burst_score"])
       .filter((v): v is number => typeof v === "number");
-    const burstBaseline = burstVals.length ? burstVals.reduce((a, b) => a + b, 0) / burstVals.length : null;
+    // Prefer the exact average the model used when explaining this entity; else recompute from stored features.
+    const explAvg = ((entity as { explanation?: { feature: string; datasetAverage: number }[] } | null)?.explanation ?? [])
+      .find((x) => x.feature === "burst_score")?.datasetAverage;
+    const burstBaseline = typeof explAvg === "number" ? explAvg : burstVals.length ? burstVals.reduce((a, b) => a + b, 0) / burstVals.length : null;
     const burst = summarizeBurst(
       sorted.map((t) => t.timestamp as number),
       burstBaseline,
