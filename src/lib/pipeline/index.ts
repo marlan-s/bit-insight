@@ -11,6 +11,7 @@ export * from "./features";
 export * from "./risk";
 export * from "./generator";
 export * from "./evaluate";
+export * from "./investigate";
 
 export interface PipelineResult {
   graph: IntelGraph;

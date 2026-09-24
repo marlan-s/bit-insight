@@ -26,7 +26,9 @@ export default function GraphCanvas({
   center,
   onSelect,
   onExpand,
+  highlight,
 }: {
+  highlight?: string | null;
   nodes: GraphNodeData[];
   edges: GraphEdgeData[];
   center: string;
@@ -106,6 +108,18 @@ export default function GraphCanvas({
       cyRef.current = null;
     };
   }, [nodes, edges, center]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.elements().unselect();
+    if (!highlight) return;
+    const node = cy.getElementById(highlight);
+    if (node.nonempty()) {
+      node.select();
+      cy.animate({ center: { eles: node }, duration: 250 });
+    }
+  }, [highlight, nodes, edges]);
 
   return <div ref={containerRef} className="h-[460px] w-full rounded bg-background/60" />;
 }

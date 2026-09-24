@@ -10,6 +10,11 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+// Fonts are bundled locally (offline requirement) — no remote font CDN.
+import plexCss from "@fontsource/ibm-plex-sans/400.css?url";
+import plex500Css from "@fontsource/ibm-plex-sans/500.css?url";
+import monoCss from "@fontsource/jetbrains-mono/400.css?url";
+import mono500Css from "@fontsource/jetbrains-mono/500.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -91,12 +96,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap",
-      },
+      { rel: "stylesheet", href: plexCss },
+      { rel: "stylesheet", href: plex500Css },
+      { rel: "stylesheet", href: monoCss },
+      { rel: "stylesheet", href: mono500Css },
       {
         rel: "stylesheet",
         href: appCss,
