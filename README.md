@@ -27,3 +27,11 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+
+## Investigation enhancements
+
+- **Search & filters** (Risk Alerts): case-insensitive search over wallet, IP and TXID (matches stored transactions, so a wallet/IP search also surfaces related transactions); filters for entity type, risk band, and last-seen window (relative to the latest observation in the dataset); sorting by risk, transaction count, last seen, or name; "Showing X of Y" and Clear filters; paginated 50 rows.
+- **Behavioural timeline**: chronological events with time, TXID, amount, direction, IP and counterparty; burst window uses the same 10-minute sliding window as the `burst_score` model feature, compared with the dataset average burst score. Clicking an event shows details and highlights it in the graph.
+- **"Why this entity?" card**: risk score, priority, and the top evidence items taken verbatim from the Isolation Forest explanation (feature value, dataset average, z-score) — no free text, no LLM.
+- Fonts are bundled locally; the UI makes no external requests.
+- Tests: `bunx vitest run tests`.
