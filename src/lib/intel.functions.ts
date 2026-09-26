@@ -121,7 +121,7 @@ async function insertDataset(client: SupabaseClient, name: string, text: string)
 }
 
 export const health = createServerFn({ method: "GET" }).handler(async () => {
-  const { error } = await db().from("datasets").select("id").limit(1);
+  const { error } = await (await db()).from("datasets").select("id").limit(1);
   return { ok: !error, offline: true, detector: "IsolationForest", error: error?.message ?? null };
 });
 
@@ -142,11 +142,11 @@ export const uploadDataset = createServerFn({ method: "POST" })
     if (input.content.length > 20_000_000) throw new Error("The file is too large (limit 20 MB).");
     return input;
   })
-  .handler(async ({ data }) => insertDataset(db(), data.filename, data.content));
+  .handler(async ({ data }) => insertDataset(await db(), data.filename, data.content));
 
 export const loadDemoDataset = createServerFn({ method: "POST" }).handler(async () => {
   const csv = toCsv(generateDataset());
-  return insertDataset(db(), `demo_bitcoin_traffic_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  return insertDataset(await db(), `demo_bitcoin_traffic_${new Date().toISOString().slice(0, 10)}.csv`, csv);
 });
 
 export const processDataset = createServerFn({ method: "POST" })
@@ -155,7 +155,7 @@ export const processDataset = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const txs = await loadTransactions(client, data.datasetId);
     if (txs.length < 5) throw new Error("This dataset is too small to analyse (at least 5 transactions are needed).");
 
@@ -201,7 +201,7 @@ export const processDataset = createServerFn({ method: "POST" })
 export const getDatasetSummary = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const [{ data: dataset }, { data: run }] = await Promise.all([
       client.from("datasets").select("*").eq("id", data.datasetId).maybeSingle(),
       client
@@ -234,7 +234,7 @@ export const getAlerts = createServerFn({ method: "POST" })
 export const getEntityDetail = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string; entityId: string; entityType: string; hops?: number }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const { data: entity } = await client
       .from("entities")
       .select("*")
@@ -373,7 +373,7 @@ export const getEntityDetail = createServerFn({ method: "POST" })
 export const expandNode = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string; nodeId: string }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const txs = await loadTransactions(client, data.datasetId);
     const graph = buildGraph(txs);
     if (!graph.nodes.has(data.nodeId)) throw new Error("Unknown node.");
@@ -404,7 +404,7 @@ export const expandNode = createServerFn({ method: "POST" })
 export const getAllAlerts = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const all: unknown[] = [];
     for (let offset = 0; ; offset += 1000) {
       const { data: rows, error } = await client
