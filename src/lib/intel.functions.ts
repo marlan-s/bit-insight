@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildGraph, nodeId } from "./pipeline/graph";
 import { generateDataset, toCsv } from "./pipeline/generator";
@@ -8,20 +8,11 @@ import { runPipeline } from "./pipeline/index";
 import type { NormalizedTx } from "./pipeline/types";
 import { summarizeBurst } from "./pipeline/investigate";
 
-function db(): SupabaseClient {
-  const url = process.env["SUPABASE_URL"]!;
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      fetch: (input, init) => {
-        const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
-        h.set("apikey", key);
-        return fetch(input as RequestInfo, { ...init, headers: h });
-      },
-    },
-  });
+// Tables are read-only for the public (SELECT-only RLS policies). All reads and
+// writes go through these server functions with the privileged server client.
+async function db(): Promise<SupabaseClient> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as SupabaseClient;
 }
 
 interface TxRow {
@@ -130,12 +121,12 @@ async function insertDataset(client: SupabaseClient, name: string, text: string)
 }
 
 export const health = createServerFn({ method: "GET" }).handler(async () => {
-  const { error } = await db().from("datasets").select("id").limit(1);
+  const { error } = await (await db()).from("datasets").select("id").limit(1);
   return { ok: !error, offline: true, detector: "IsolationForest", error: error?.message ?? null };
 });
 
 export const listDatasets = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await db()
+  const { data, error } = await (await db())
     .from("datasets")
     .select("id,name,source_format,record_count,valid_count,invalid_count,status,created_at")
     .order("created_at", { ascending: false })
@@ -151,11 +142,11 @@ export const uploadDataset = createServerFn({ method: "POST" })
     if (input.content.length > 20_000_000) throw new Error("The file is too large (limit 20 MB).");
     return input;
   })
-  .handler(async ({ data }) => insertDataset(db(), data.filename, data.content));
+  .handler(async ({ data }) => insertDataset(await db(), data.filename, data.content));
 
 export const loadDemoDataset = createServerFn({ method: "POST" }).handler(async () => {
   const csv = toCsv(generateDataset());
-  return insertDataset(db(), `demo_bitcoin_traffic_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  return insertDataset(await db(), `demo_bitcoin_traffic_${new Date().toISOString().slice(0, 10)}.csv`, csv);
 });
 
 export const processDataset = createServerFn({ method: "POST" })
@@ -164,7 +155,7 @@ export const processDataset = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const txs = await loadTransactions(client, data.datasetId);
     if (txs.length < 5) throw new Error("This dataset is too small to analyse (at least 5 transactions are needed).");
 
@@ -210,7 +201,7 @@ export const processDataset = createServerFn({ method: "POST" })
 export const getDatasetSummary = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const [{ data: dataset }, { data: run }] = await Promise.all([
       client.from("datasets").select("*").eq("id", data.datasetId).maybeSingle(),
       client
@@ -228,7 +219,7 @@ export const getDatasetSummary = createServerFn({ method: "POST" })
 export const getAlerts = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string; entityType?: string; limit?: number }) => input)
   .handler(async ({ data }) => {
-    let query = db()
+    let query = (await db())
       .from("entities")
       .select("entity_id,entity_type,risk_score,primary_reason,tx_count,ip_count,last_seen,scenario")
       .eq("dataset_id", data.datasetId)
@@ -243,7 +234,7 @@ export const getAlerts = createServerFn({ method: "POST" })
 export const getEntityDetail = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string; entityId: string; entityType: string; hops?: number }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const { data: entity } = await client
       .from("entities")
       .select("*")
@@ -382,7 +373,7 @@ export const getEntityDetail = createServerFn({ method: "POST" })
 export const expandNode = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string; nodeId: string }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const txs = await loadTransactions(client, data.datasetId);
     const graph = buildGraph(txs);
     if (!graph.nodes.has(data.nodeId)) throw new Error("Unknown node.");
@@ -413,7 +404,7 @@ export const expandNode = createServerFn({ method: "POST" })
 export const getAllAlerts = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string }) => input)
   .handler(async ({ data }) => {
-    const client = db();
+    const client = await db();
     const all: unknown[] = [];
     for (let offset = 0; ; offset += 1000) {
       const { data: rows, error } = await client
@@ -441,7 +432,7 @@ export const searchRelated = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.query.length < 2) return { related: [] as string[], ips: [] as string[], txCount: 0 };
     const like = `%${data.query}%`;
-    const { data: rows, error } = await db()
+    const { data: rows, error } = await (await db())
       .from("transactions")
       .select("txid,input_wallet,output_wallet,source_ip,destination_ip")
       .eq("dataset_id", data.datasetId)
