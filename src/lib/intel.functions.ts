@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildGraph, nodeId } from "./pipeline/graph";
 import { generateDataset, toCsv } from "./pipeline/generator";
@@ -8,20 +8,11 @@ import { runPipeline } from "./pipeline/index";
 import type { NormalizedTx } from "./pipeline/types";
 import { summarizeBurst } from "./pipeline/investigate";
 
-function db(): SupabaseClient {
-  const url = process.env["SUPABASE_URL"]!;
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      fetch: (input, init) => {
-        const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
-        h.set("apikey", key);
-        return fetch(input as RequestInfo, { ...init, headers: h });
-      },
-    },
-  });
+// Tables are read-only for the public (SELECT-only RLS policies). All reads and
+// writes go through these server functions with the privileged server client.
+async function db(): Promise<SupabaseClient> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as SupabaseClient;
 }
 
 interface TxRow {
