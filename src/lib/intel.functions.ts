@@ -126,7 +126,7 @@ export const health = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const listDatasets = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await db()
+  const { data, error } = await (await db())
     .from("datasets")
     .select("id,name,source_format,record_count,valid_count,invalid_count,status,created_at")
     .order("created_at", { ascending: false })
@@ -219,7 +219,7 @@ export const getDatasetSummary = createServerFn({ method: "POST" })
 export const getAlerts = createServerFn({ method: "POST" })
   .inputValidator((input: { datasetId: string; entityType?: string; limit?: number }) => input)
   .handler(async ({ data }) => {
-    let query = db()
+    let query = (await db())
       .from("entities")
       .select("entity_id,entity_type,risk_score,primary_reason,tx_count,ip_count,last_seen,scenario")
       .eq("dataset_id", data.datasetId)
@@ -432,7 +432,7 @@ export const searchRelated = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.query.length < 2) return { related: [] as string[], ips: [] as string[], txCount: 0 };
     const like = `%${data.query}%`;
-    const { data: rows, error } = await db()
+    const { data: rows, error } = await (await db())
       .from("transactions")
       .select("txid,input_wallet,output_wallet,source_ip,destination_ip")
       .eq("dataset_id", data.datasetId)
